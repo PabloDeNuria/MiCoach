@@ -1,4 +1,3 @@
-
 // OnboardingView.swift
 
 import SwiftUI
@@ -8,9 +7,9 @@ struct OnboardingView: View {
     @State private var selectedObjectives: Set<String> = []
     @State private var userName = ""
     @State private var userEmail = ""
-    @State private var showingDashboard = false
     @State private var fitnessGoal = "Fuerza"
     @State private var fitnessLevel = "Principiante"
+    @State private var isCreatingPlan = false
     @ObservedObject var coachingService: CoachingService
     
     let objectives = [
@@ -28,43 +27,67 @@ struct OnboardingView: View {
             ZStack {
                 Color.background.ignoresSafeArea()
                 
-                VStack(spacing: 0) {
-                    // Progress bar
-                    ProgressView(value: Double(currentStep + 1), total: showFitnessQuestions ? 4 : 3)
-                        .progressViewStyle(LinearProgressViewStyle())
-                        .padding()
-                    
-                    // Content
-                    TabView(selection: $currentStep) {
-                        // Step 0: Welcome
-                        welcomeStep
-                            .tag(0)
+                if isCreatingPlan {
+                    // Pantalla de carga mientras se crea el plan
+                    creatingPlanView
+                } else {
+                    VStack(spacing: 0) {
+                        // Progress bar
+                        ProgressView(value: Double(currentStep + 1), total: showFitnessQuestions ? 4 : 3)
+                            .progressViewStyle(LinearProgressViewStyle())
+                            .padding()
                         
-                        // Step 1: Basic info
-                        basicInfoStep
-                            .tag(1)
-                        
-                        // Step 2: Objective selection
-                        objectiveSelectionStep
-                            .tag(2)
-                        
-                        // Step 3: Fitness details (Condicional)
-                        if showFitnessQuestions {
-                            fitnessQuestionsStep
-                                .tag(3)
+                        // Content
+                        TabView(selection: $currentStep) {
+                            // Step 0: Welcome
+                            welcomeStep
+                                .tag(0)
+                            
+                            // Step 1: Basic info
+                            basicInfoStep
+                                .tag(1)
+                            
+                            // Step 2: Objective selection
+                            objectiveSelectionStep
+                                .tag(2)
+                            
+                            // Step 3: Fitness details (Condicional)
+                            if showFitnessQuestions {
+                                fitnessQuestionsStep
+                                    .tag(3)
+                            }
                         }
+                        .tabViewStyle(.page(indexDisplayMode: .never))
                     }
-                    .tabViewStyle(.page(indexDisplayMode: .never))
                 }
-            }
-            .fullScreenCover(isPresented: $showingDashboard) {
-                DashboardView(coachingService: coachingService)
             }
         }
     }
     
     private var showFitnessQuestions: Bool {
         selectedObjectives.contains("Salud")
+    }
+    
+    private var creatingPlanView: some View {
+        VStack(spacing: 32) {
+            Image(systemName: "brain.head.profile")
+                .font(.system(size: 80))
+                .foregroundColor(.blue)
+            
+            Text("Creando tu plan personalizado")
+                .font(.title.bold())
+                .multilineTextAlignment(.center)
+            
+            Text("Estamos generando un plan único basado en tus objetivos y preferencias")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            ProgressView()
+                .scaleEffect(1.5)
+                .padding(.top, 20)
+        }
     }
     
     private var welcomeStep: some View {
@@ -198,11 +221,11 @@ struct OnboardingView: View {
                     }
                 }
                 .padding()
+                .disabled(isCreatingPlan)
             }
             
             Spacer()
             
-            // Corrección: Simplificar la condición para mostrar siempre el botón en el paso 2
             if (currentStep < 2) || (currentStep == 2) || (currentStep == 3) {
                 Button(currentStep == (showFitnessQuestions ? 3 : 2) ? "Empezar" : "Siguiente") {
                     if currentStep == (showFitnessQuestions ? 3 : 2) {
@@ -214,7 +237,8 @@ struct OnboardingView: View {
                     }
                 }
                 .padding()
-                .disabled(!canProceed)
+                .disabled(!canProceed || isCreatingPlan)
+                .opacity(canProceed && !isCreatingPlan ? 1.0 : 0.6)
             }
         }
     }
@@ -251,48 +275,59 @@ struct OnboardingView: View {
     }
     
     private func createPlan() {
-        // Crear usuario
-        let user = User(
-            id: UUID().uuidString,
-            email: userEmail,
-            name: userName,
-            createdAt: Date(),
-            updatedAt: Date()
-        )
-        
-        // Crear evaluación simplificada con todos los objetivos seleccionados
-        let preferences = AssessmentPreferences(
-            pace: "moderado",
-            learningStyle: "visual",
-            timeOfDay: "mañana"
-        )
-        
-        // Construir metadata con información adicional si se seleccionó Salud
-        var metadata: [String: String] = [:]
-        if selectedObjectives.contains("Salud") {
-            metadata["fitnessGoal"] = fitnessGoal
-            metadata["fitnessLevel"] = fitnessLevel
-        }
-        
-        let assessment = InitialAssessment(
-            id: UUID().uuidString,
-            userId: user.id,
-            mainObjective: selectedObjectives.joined(separator: ","),
-            currentSituation: "",
-            timeCommitment: "30 minutos",
-            resources: [],
-            preferences: preferences,
-            metadata: metadata,  // Incluir los datos adicionales
-            createdAt: Date()
-        )
+        isCreatingPlan = true
         
         Task {
             do {
+                // Crear usuario
+                let user = User(
+                    id: UUID().uuidString,
+                    email: userEmail,
+                    name: userName,
+                    createdAt: Date(),
+                    updatedAt: Date()
+                )
+                
+                // Crear evaluación simplificada con todos los objetivos seleccionados
+                let preferences = AssessmentPreferences(
+                    pace: "moderado",
+                    learningStyle: "visual",
+                    timeOfDay: "mañana"
+                )
+                
+                // Construir metadata con información adicional si se seleccionó Salud
+                var metadata: [String: String] = [:]
+                if selectedObjectives.contains("Salud") {
+                    metadata["fitnessGoal"] = fitnessGoal
+                    metadata["fitnessLevel"] = fitnessLevel
+                }
+                
+                let assessment = InitialAssessment(
+                    id: UUID().uuidString,
+                    userId: user.id,
+                    mainObjective: selectedObjectives.joined(separator: ","),
+                    currentSituation: "",
+                    timeCommitment: "30 minutos",
+                    resources: [],
+                    preferences: preferences,
+                    metadata: metadata,
+                    createdAt: Date()
+                )
+                
+                // Guardar usuario y crear plan
                 try await coachingService.saveUser(user)
                 _ = try await coachingService.createAssessment(assessmentData: assessment)
-                showingDashboard = true
+                
+                print("✅ Plan creado exitosamente")
+                
+                // El ContentView detectará automáticamente que ahora hay un usuario
+                // y cambiará a mostrar el DashboardView
+                
             } catch {
-                print("Error creating plan: \(error)")
+                print("❌ Error creating plan: \(error)")
+                await MainActor.run {
+                    isCreatingPlan = false
+                }
             }
         }
     }

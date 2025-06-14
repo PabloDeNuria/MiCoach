@@ -3,7 +3,7 @@ import SwiftUI
 import Foundation
 
 // MARK: - User Model
-struct User: Codable, Identifiable {
+struct User: Codable, Identifiable, Equatable {
     let id: String
     let email: String
     let name: String
