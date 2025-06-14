@@ -20,55 +20,65 @@ struct HomeView: View {
                         // Fecha actual en grande
                         dateHeader
                         
-                        // Información de debug
-                        debugInfoSection
-                        
                         // Sección de rutina de fitness (si aplica)
                         if let fitnessRoutines = coachingService.currentPlan?.fitnessRoutines, !fitnessRoutines.isEmpty {
                             fitnessRoutineSection(routines: fitnessRoutines)
                         }
                         
-                        // Objetivos diarios
+                        // Objetivos diarios (sin las tareas de entrenamiento)
                         VStack(alignment: .leading, spacing: 20) {
                             Text("Objetivos diarios:")
                                 .font(.system(size: 24, weight: .semibold))
                                 .foregroundColor(.primary)
                             
-                            // Task Cards (sin reflexión)
+                            // Task Cards (filtrando tareas de entrenamiento y reflexión)
                             if let dailyTask = coachingService.getDailyGuidance() {
-                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                                    ForEach(dailyTask.tasks.filter { !$0.title.contains("Reflexión") }) { task in
-                                        TaskCard(
-                                            task: task,
-                                            isCompleted: taskCompleted(task.id),
-                                            isInProgress: inProgressTasks.contains(task.id),
-                                            onCompleted: {
-                                                showCompletionFeedback()
+                                let filteredTasks = dailyTask.tasks.filter { task in
+                                    !task.title.contains("Reflexión") &&
+                                    !task.title.contains("Entrenamiento de") &&
+                                    task.category != "Fitness"
+                                }
+                                
+                                if !filteredTasks.isEmpty {
+                                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                                        ForEach(filteredTasks) { task in
+                                            TaskCard(
+                                                task: task,
+                                                isCompleted: taskCompleted(task.id),
+                                                isInProgress: inProgressTasks.contains(task.id),
+                                                onCompleted: {
+                                                    showCompletionFeedback()
+                                                }
+                                            ) {
+                                                selectedTask = task
                                             }
-                                        ) {
-                                            selectedTask = task
                                         }
                                     }
+                                } else {
+                                    // Mensaje cuando no hay tareas regulares para hoy
+                                    VStack(spacing: 16) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.system(size: 40))
+                                            .foregroundColor(.green)
+                                        
+                                        Text("¡Todo listo por hoy!")
+                                            .font(.headline)
+                                            .foregroundColor(.primary)
+                                        
+                                        Text("No tienes tareas pendientes")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding()
+                                    .background(Color.green.opacity(0.1))
+                                    .cornerRadius(12)
                                 }
                             } else {
-                                // Mostrar mensaje si no hay tareas
+                                // Mensaje si no hay plan o tareas
                                 VStack(spacing: 16) {
                                     Text("No hay tareas disponibles")
                                         .font(.headline)
                                         .foregroundColor(.secondary)
-                                    
-                                    Text("Esto puede ocurrir si:")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                    
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text("• No tienes un plan activo")
-                                        Text("• No hay progreso registrado")
-                                        Text("• Los datos no se cargaron correctamente")
-                                    }
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 .padding()
                                 .background(Color.orange.opacity(0.1))
@@ -97,16 +107,6 @@ struct HomeView: View {
                                     .foregroundColor(.white)
                                     .padding()
                                     .background(Color.red)
-                                    .cornerRadius(8)
-                            }
-                            
-                            // Botón para crear datos de prueba
-                            Button(action: createTestData) {
-                                Text("Crear datos de prueba")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white)
-                                    .padding()
-                                    .background(Color.green)
                                     .cornerRadius(8)
                             }
                         }
@@ -153,64 +153,7 @@ struct HomeView: View {
         }
     }
     
-    // MARK: - Sección de información de debug
-    private var debugInfoSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Estado de la app (Debug)")
-                .font(.headline)
-                .foregroundColor(.orange)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Usuario:")
-                        .fontWeight(.medium)
-                    Text(coachingService.currentUser?.name ?? "No disponible")
-                        .foregroundColor(coachingService.currentUser != nil ? .green : .red)
-                }
-                
-                HStack {
-                    Text("Plan:")
-                        .fontWeight(.medium)
-                    Text(coachingService.currentPlan?.objective ?? "No disponible")
-                        .foregroundColor(coachingService.currentPlan != nil ? .green : .red)
-                }
-                
-                HStack {
-                    Text("Progreso:")
-                        .fontWeight(.medium)
-                    if let progress = coachingService.progress {
-                        Text("Día \(progress.currentDay)")
-                            .foregroundColor(.green)
-                    } else {
-                        Text("No disponible")
-                            .foregroundColor(.red)
-                    }
-                }
-                
-                if let dailyTask = coachingService.getDailyGuidance() {
-                    HStack {
-                        Text("Tareas de hoy:")
-                            .fontWeight(.medium)
-                        Text("\(dailyTask.tasks.count) tareas")
-                            .foregroundColor(.green)
-                    }
-                } else {
-                    HStack {
-                        Text("Tareas de hoy:")
-                            .fontWeight(.medium)
-                        Text("No disponibles")
-                            .foregroundColor(.red)
-                    }
-                }
-            }
-            .font(.caption)
-            .padding()
-            .background(Color.orange.opacity(0.1))
-            .cornerRadius(8)
-        }
-        .padding(.horizontal)
-    }
-    
+    // MARK: - Sección de entrenamiento
     private func fitnessRoutineSection(routines: [FitnessRoutine]) -> some View {
         // Determinar qué rutina corresponde al día de hoy
         let todaysRoutine = getTodaysRoutine(from: routines)
@@ -226,7 +169,6 @@ struct HomeView: View {
                     selectedRoutine = routine
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.horizontal)
             } else {
                 // Si hoy no toca entrenamiento
                 Text("Hoy es tu día de descanso 😊")
@@ -239,7 +181,7 @@ struct HomeView: View {
         .padding(.horizontal)
     }
     
-    // Función para determinar la rutina de hoy
+    // Función corregida para determinar la rutina de hoy
     private func getTodaysRoutine(from routines: [FitnessRoutine]) -> FitnessRoutine? {
         guard !routines.isEmpty else { return nil }
         
@@ -247,7 +189,7 @@ struct HomeView: View {
         let calendar = Calendar.current
         let today = calendar.component(.weekday, from: Date())
         
-        // Para rutinas de 3 días (Lun, Mié, Vie)
+        // Para rutinas de 3 días (Lunes, Miércoles, Viernes)
         if routines.count == 3 {
             switch today {
             case 2: // Lunes
@@ -257,10 +199,10 @@ struct HomeView: View {
             case 6: // Viernes
                 return routines[2]
             default:
-                return nil
+                return nil // Días de descanso: Martes, Jueves, Sábado, Domingo
             }
         }
-        // Para rutinas de 4 días (Lun, Mar, Jue, Vie)
+        // Para rutinas de 4 días (Lunes, Martes, Jueves, Viernes)
         else if routines.count == 4 {
             switch today {
             case 2: // Lunes
@@ -272,22 +214,19 @@ struct HomeView: View {
             case 6: // Viernes
                 return routines[3]
             default:
-                return nil
+                return nil // Días de descanso: Miércoles, Sábado, Domingo
             }
         }
-        // Para rutinas de 5 días (Lun-Vie)
+        // Para rutinas de 5 días (Lunes a Viernes)
         else if routines.count == 5 {
-            // De lunes a viernes
-            if today >= 2 && today <= 6 {
+            if today >= 2 && today <= 6 { // Lunes a Viernes
                 return routines[today - 2]
             } else {
-                return nil
+                return nil // Días de descanso: Sábado, Domingo
             }
         }
         
-        // Si ninguno de los casos anteriores, devolver la primera rutina
-        // (esto es solo una fallback)
-        return routines.first
+        return nil
     }
     
     private func showCompletionFeedback() {
@@ -378,52 +317,6 @@ struct HomeView: View {
             // Reiniciar la app navegando al root
             if let window = UIApplication.shared.windows.first {
                 window.rootViewController?.dismiss(animated: false)
-            }
-        }
-    }
-    
-    // Función para crear datos de prueba
-    private func createTestData() {
-        Task {
-            do {
-                // Crear usuario de prueba
-                let testUser = User(
-                    id: UUID().uuidString,
-                    email: "test@example.com",
-                    name: "Usuario de Prueba",
-                    createdAt: Date(),
-                    updatedAt: Date()
-                )
-                
-                // Crear evaluación de prueba
-                let preferences = AssessmentPreferences(
-                    pace: "moderado",
-                    learningStyle: "visual",
-                    timeOfDay: "mañana"
-                )
-                
-                let testAssessment = InitialAssessment(
-                    id: UUID().uuidString,
-                    userId: testUser.id,
-                    mainObjective: "Salud,Productividad",
-                    currentSituation: "Quiero mejorar mi estilo de vida",
-                    timeCommitment: "1 hora",
-                    resources: ["Tiempo", "Motivación"],
-                    preferences: preferences,
-                    metadata: ["fitnessGoal": "Fuerza", "fitnessLevel": "Principiante"],
-                    createdAt: Date()
-                )
-                
-                // Guardar usuario
-                try await coachingService.saveUser(testUser)
-                
-                // Crear y guardar plan
-                _ = try await coachingService.createAssessment(assessmentData: testAssessment)
-                
-                print("✅ Datos de prueba creados exitosamente")
-                
-            } catch {
-                print("❌ Error creando datos de prueba: \(error)")
             }
         }
     }
