@@ -4,7 +4,6 @@ import SwiftUI
 
 struct HomeView: View {
     @ObservedObject var coachingService: CoachingService
-    @State private var showingProfile = false
     @State private var selectedTask: DailyTaskItem?
     @State private var selectedRoutine: FitnessRoutine?
     @State private var inProgressTasks: Set<String> = []
@@ -20,6 +19,9 @@ struct HomeView: View {
                     VStack(spacing: 32) {
                         // Fecha actual en grande
                         dateHeader
+                        
+                        // Información de debug
+                        debugInfoSection
                         
                         // Sección de rutina de fitness (si aplica)
                         if let fitnessRoutines = coachingService.currentPlan?.fitnessRoutines, !fitnessRoutines.isEmpty {
@@ -48,6 +50,29 @@ struct HomeView: View {
                                         }
                                     }
                                 }
+                            } else {
+                                // Mostrar mensaje si no hay tareas
+                                VStack(spacing: 16) {
+                                    Text("No hay tareas disponibles")
+                                        .font(.headline)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("Esto puede ocurrir si:")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("• No tienes un plan activo")
+                                        Text("• No hay progreso registrado")
+                                        Text("• Los datos no se cargaron correctamente")
+                                    }
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .padding()
+                                .background(Color.orange.opacity(0.1))
+                                .cornerRadius(12)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -74,6 +99,16 @@ struct HomeView: View {
                                     .background(Color.red)
                                     .cornerRadius(8)
                             }
+                            
+                            // Botón para crear datos de prueba
+                            Button(action: createTestData) {
+                                Text("Crear datos de prueba")
+                                    .font(.subheadline)
+                                    .foregroundColor(.white)
+                                    .padding()
+                                    .background(Color.green)
+                                    .cornerRadius(8)
+                            }
                         }
                         .padding(.top, 32)
                         
@@ -86,10 +121,6 @@ struct HomeView: View {
                 reflectionSection
             }
             .navigationTitle("")
-            .navigationBarItems(trailing: profileButton)
-            .sheet(isPresented: $showingProfile) {
-                ProfileView(profileData: coachingService)
-            }
             .sheet(item: $selectedTask) { task in
                 TaskDetailView(
                     task: task,
@@ -114,6 +145,70 @@ struct HomeView: View {
                 CompletionFeedback(isShowing: $showCompletionMessage)
             )
         }
+        .onAppear {
+            // Recargar datos al aparecer la vista
+            Task {
+                await coachingService.loadData()
+            }
+        }
+    }
+    
+    // MARK: - Sección de información de debug
+    private var debugInfoSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Estado de la app (Debug)")
+                .font(.headline)
+                .foregroundColor(.orange)
+            
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Usuario:")
+                        .fontWeight(.medium)
+                    Text(coachingService.currentUser?.name ?? "No disponible")
+                        .foregroundColor(coachingService.currentUser != nil ? .green : .red)
+                }
+                
+                HStack {
+                    Text("Plan:")
+                        .fontWeight(.medium)
+                    Text(coachingService.currentPlan?.objective ?? "No disponible")
+                        .foregroundColor(coachingService.currentPlan != nil ? .green : .red)
+                }
+                
+                HStack {
+                    Text("Progreso:")
+                        .fontWeight(.medium)
+                    if let progress = coachingService.progress {
+                        Text("Día \(progress.currentDay)")
+                            .foregroundColor(.green)
+                    } else {
+                        Text("No disponible")
+                            .foregroundColor(.red)
+                    }
+                }
+                
+                if let dailyTask = coachingService.getDailyGuidance() {
+                    HStack {
+                        Text("Tareas de hoy:")
+                            .fontWeight(.medium)
+                        Text("\(dailyTask.tasks.count) tareas")
+                            .foregroundColor(.green)
+                    }
+                } else {
+                    HStack {
+                        Text("Tareas de hoy:")
+                            .fontWeight(.medium)
+                        Text("No disponibles")
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            .font(.caption)
+            .padding()
+            .background(Color.orange.opacity(0.1))
+            .cornerRadius(8)
+        }
+        .padding(.horizontal)
     }
     
     private func fitnessRoutineSection(routines: [FitnessRoutine]) -> some View {
@@ -252,19 +347,6 @@ struct HomeView: View {
         }
     }
     
-    private var profileButton: some View {
-        Button(action: { showingProfile = true }) {
-            Circle()
-                .fill(Color.gray.opacity(0.15))
-                .frame(width: 36, height: 36)
-                .overlay(
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(.primary)
-                )
-        }
-    }
-    
     private func taskCompleted(_ taskId: String) -> Bool {
         coachingService.progress?.completedTasks.contains(taskId) ?? false
     }
@@ -296,6 +378,52 @@ struct HomeView: View {
             // Reiniciar la app navegando al root
             if let window = UIApplication.shared.windows.first {
                 window.rootViewController?.dismiss(animated: false)
+            }
+        }
+    }
+    
+    // Función para crear datos de prueba
+    private func createTestData() {
+        Task {
+            do {
+                // Crear usuario de prueba
+                let testUser = User(
+                    id: UUID().uuidString,
+                    email: "test@example.com",
+                    name: "Usuario de Prueba",
+                    createdAt: Date(),
+                    updatedAt: Date()
+                )
+                
+                // Crear evaluación de prueba
+                let preferences = AssessmentPreferences(
+                    pace: "moderado",
+                    learningStyle: "visual",
+                    timeOfDay: "mañana"
+                )
+                
+                let testAssessment = InitialAssessment(
+                    id: UUID().uuidString,
+                    userId: testUser.id,
+                    mainObjective: "Salud,Productividad",
+                    currentSituation: "Quiero mejorar mi estilo de vida",
+                    timeCommitment: "1 hora",
+                    resources: ["Tiempo", "Motivación"],
+                    preferences: preferences,
+                    metadata: ["fitnessGoal": "Fuerza", "fitnessLevel": "Principiante"],
+                    createdAt: Date()
+                )
+                
+                // Guardar usuario
+                try await coachingService.saveUser(testUser)
+                
+                // Crear y guardar plan
+                _ = try await coachingService.createAssessment(assessmentData: testAssessment)
+                
+                print("✅ Datos de prueba creados exitosamente")
+                
+            } catch {
+                print("❌ Error creando datos de prueba: \(error)")
             }
         }
     }

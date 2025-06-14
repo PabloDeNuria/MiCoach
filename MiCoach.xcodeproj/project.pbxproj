@@ -40,6 +40,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		172C53532DFDC3D300F97E8F /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		176B1BE42DC33F5C0088CA69 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		176B1BE62DC341070088CA69 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		176B1BEA2DC341390088CA69 /* ProgressTrackingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressTrackingView.swift; sourceTree = "<group>"; };
@@ -153,6 +154,7 @@
 			isa = PBXGroup;
 			children = (
 				176B1C202DC349800088CA69 /* MiCoach-Info.plist */,
+				172C53532DFDC3D300F97E8F /* .gitignore */,
 				176B1BD92DC335F30088CA69 /* App */,
 				176B1C1A2DC344810088CA69 /* Models */,
 				176B1BDB2DC338000088CA69 /* Views */,
